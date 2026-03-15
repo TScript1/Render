@@ -4,82 +4,111 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const http = require('http');
+const { Server } = require("socket.io");
+const cookieParser = require('cookie-parser');
 const User = require('./models/User');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 
-// Middleware
+// --- MIDDLEWARES ---
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public')); // Pour vos fichiers CSS/JS clients
+app.use(cookieParser());
+app.use(express.static('public'));
 
 // Connexion MongoDB
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log("✅ MongoDB Connecté"))
     .catch(err => console.error("❌ Erreur DB:", err));
 
-// --- ROUTES RENDU (FRONTEND SIMPLE) ---
+// Middleware pour protéger les routes
+const authMiddleware = (req, res, next) => {
+    const token = req.cookies.auth_token;
+    if (!token) return res.redirect('/login');
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (err) {
+        res.clearCookie('auth_token');
+        res.redirect('/login');
+    }
+};
+
+// --- ROUTES RENDU ---
 
 app.get('/', (req, res) => {
-    res.send(`
-        <h1>Bienvenue sur MyDiscord-Clone</h1>
-        <p>Une plateforme de messagerie avec API Lua intégrée.</p>
-        <hr>
-        <a href="/login">Se connecter</a> | <a href="/signup">S'inscrire</a>
-    `);
+    res.send('<h1>Accueil</h1><a href="/login">Login</a> | <a href="/signup">Sign Up</a>');
 });
 
-app.get('/signup', (req, res) => {
-    res.send(`
-        <h2>Inscription</h2>
-        <form action="/api/auth/signup" method="POST">
-            <input type="text" name="username" placeholder="Pseudo" required><br>
-            <input type="email" name="email" placeholder="Email" required><br>
-            <input type="password" name="password" placeholder="Mot de passe" required><br>
-            <button type="submit">Créer mon compte</button>
-        </form>
-    `);
+app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public/signup.html')));
+app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public/login.html')));
+
+// Page Dashboard protégée
+app.get('/dashboard', authMiddleware, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public/dashboard.html'));
 });
 
-app.get('/login', (req, res) => {
-    res.send(`
-        <h2>Connexion</h2>
-        <form action="/api/auth/login" method="POST">
-            <input type="email" name="email" placeholder="Email" required><br>
-            <input type="password" name="password" placeholder="Mot de passe" required><br>
-            <button type="submit">Entrer</button>
-        </form>
-    `);
-});
-
-// --- ROUTES API (LOGIQUE) ---
+// --- API AUTH ---
 
 app.post('/api/auth/signup', async (req, res) => {
     try {
         const { username, email, password } = req.body;
         const hashedPassword = await bcrypt.hash(password, 10);
-        
         const newUser = new User({ username, email, password: hashedPassword });
         await newUser.save();
-        
-        res.send("Compte créé ! <a href='/login'>Connectez-vous ici</a>");
+        res.redirect('/login');
     } catch (err) {
-        res.status(400).send("Erreur lors de l'inscription : " + err.message);
+        res.status(400).send("Erreur: " + err.message);
     }
 });
 
 app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
-
     if (user && await bcrypt.compare(password, user.password)) {
-        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
-        // Ici on redirigera vers l'espace membre plus tard
-        res.send(`Connecté ! Votre Token Webhook est : ${user.webhookToken}`);
+        const token = jwt.sign(
+            { id: user._id, username: user.username, webhook: user.webhookToken }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: '24h' }
+        );
+        res.cookie('auth_token', token, { httpOnly: true });
+        res.redirect('/dashboard');
     } else {
-        res.status(401).send("Identifiants incorrects.");
+        res.send("Identifiants incorrects. <a href='/login'>Réessayer</a>");
     }
 });
 
+// Route pour que le dashboard récupère les infos de l'utilisateur
+app.get('/api/user/me', authMiddleware, (req, res) => {
+    res.json(req.user);
+});
+
+// --- WEBHOOK EXTERNE ---
+app.post('/webhook/:token', async (req, res) => {
+    const user = await User.findOne({ webhookToken: req.params.token });
+    if (user) {
+        const messageContent = req.body.message || "Système: Requête reçue sur votre webhook.";
+        io.to(user._id.toString()).emit('receive_message', {
+            from: 'WEBHOOK EXTERNE',
+            text: messageContent,
+            date: new Date().toLocaleTimeString()
+        });
+        return res.json({ status: "success" });
+    }
+    res.status(404).json({ error: "Token invalide" });
+});
+
+// --- SOCKET.IO ---
+io.on('connection', (socket) => {
+    socket.on('join_room', (userId) => {
+        socket.join(userId);
+        console.log(`Utilisateur ${userId} a rejoint sa room.`);
+    });
+});
+
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Serveur actif sur le port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Serveur sur http://localhost:${PORT}`));
