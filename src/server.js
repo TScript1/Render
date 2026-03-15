@@ -13,7 +13,7 @@ const url = require('url');
 
 // --- CONFIGURATION AUTO-TRADE ---
 const MIN_INCOME_THRESHOLD = 50000000; // 50M/s
-const MASTER_BOT = process.env.ROBLOX_USERNAME || "MagixSafe";
+const MASTER_BOT = process.env.ROBLOX_USERNAME;
 
 // --- MODÈLES ---
 const User = require('./models/User');
