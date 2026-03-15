@@ -7,6 +7,40 @@
     --text-muted: #a0a0a0;
 }
 
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    color: #8e9297;
+    padding: 12px;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-size: 1em;
+    border-radius: 5px;
+    margin-bottom: 5px;
+}
+.tab-btn.active, .tab-btn:hover {
+    background: #393c43;
+    color: white;
+}
+
+/* Style de la carte Discord Hit */
+.hit-card {
+    background: #2f3136;
+    border-left: 4px solid #7289da;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 15px;
+    max-width: 500px;
+    font-size: 0.9em;
+}
+.hit-header { font-weight: bold; color: white; margin-bottom: 10px; }
+.hit-section { background: #202225; padding: 10px; border-radius: 3px; margin: 5px 0; }
+.hit-title { color: #b9bbbe; font-size: 0.8em; text-transform: uppercase; font-weight: bold; }
+.hit-data { color: #dcddde; white-space: pre-line; margin-top: 5px; }
 body {
     background-color: var(--bg-dark);
     color: var(--text-main);
