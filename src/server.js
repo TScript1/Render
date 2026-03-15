@@ -20,7 +20,7 @@ app.use(cookieParser());
 app.use(express.static('public'));
 
 // Connexion MongoDB
-mongoose.connect(process.env.MONGODB_URI)
+mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ MongoDB Connecté"))
     .catch(err => console.error("❌ Erreur DB:", err));
 
