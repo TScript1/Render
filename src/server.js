@@ -18,7 +18,7 @@ const io = new Server(server);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(express.static('public'));
+app.use(express.static(path.join(process.cwd(), 'public')));
 
 // Connexion MongoDB
 mongoose.connect(process.env.MONGO_URI)
@@ -42,23 +42,19 @@ const authMiddleware = (req, res, next) => {
 // --- ROUTES RENDU ---
 
 app.get('/', (req, res) => {
-    const filePath = path.join(process.cwd(), 'public', 'index.html');
-    res.sendFile(filePath);
+    res.sendFile(path.join(process.cwd(), 'public/index.html'));
 });
 
 app.get('/login', (req, res) => {
-    const filePath = path.join(process.cwd(), 'public', 'login.html');
-    res.sendFile(filePath);
+    res.sendFile(path.join(process.cwd(), 'public/login.html'));
 });
 
 app.get('/signup', (req, res) => {
-    const filePath = path.join(process.cwd(), 'public', 'signup.html');
-    res.sendFile(filePath);
+    res.sendFile(path.join(process.cwd(), 'public/signup.html'));
 });
 
 app.get('/dashboard', authMiddleware, (req, res) => {
-    const filePath = path.join(process.cwd(), 'public', 'dashboard.html');
-    res.sendFile(filePath);
+    res.sendFile(path.join(process.cwd(), 'public/dashboard.html'));
 });
 
 // --- API AUTH ---
