@@ -1,19 +1,44 @@
 :root {
-    --bg-dark: #1a1a1b;
-    --bg-card: #282a2d;
+    --bg-darker: #202225;
+    --bg-sidebar: #2f3136;
+    --bg-card: #36393f;
+    --bg-embed: #202225;
     --accent: #9b59b6; /* Violet Rusteez */
-    --accent-hover: #8e44ad;
-    --text-main: #ffffff;
-    --text-muted: #a0a0a0;
+    --accent-discord: #7289da;
+    --text-main: #dcddde;
+    --text-muted: #8e9297;
+    --success: #43b581;
+    --danger: #f04747;
 }
 
-.tab-content { display: none; }
-.tab-content.active { display: block; }
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg-darker);
+    color: var(--text-main);
+    overflow: hidden; /* Empêche le scroll du body pour garder la sidebar fixe */
+}
+
+.dashboard-container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 260px;
+    background: var(--bg-sidebar);
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    border-right: 1px solid #202225;
+}
 
 .tab-btn {
     background: transparent;
     border: none;
-    color: #8e9297;
+    color: var(--text-muted);
     padding: 12px;
     width: 100%;
     text-align: left;
@@ -21,77 +46,82 @@
     font-size: 1em;
     border-radius: 5px;
     margin-bottom: 5px;
+    transition: 0.2s;
 }
-.tab-btn.active, .tab-btn:hover {
+
+.tab-btn:hover, .tab-btn.active {
     background: #393c43;
     color: white;
 }
 
-/* Style de la carte Discord Hit */
+.tab-btn.active {
+    border-left: 3px solid var(--accent);
+}
+
+/* Zone de contenu */
+.main-content {
+    flex: 1;
+    padding: 30px;
+    overflow-y: auto;
+}
+
+.tab-content { display: none; }
+.tab-content.active { display: block; animation: fadeIn 0.3s; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Cartes de Hits (Style Discord) */
+.hits-list { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+
 .hit-card {
-    background: #2f3136;
-    border-left: 4px solid #7289da;
+    background: var(--bg-card);
+    border-left: 4px solid var(--accent-discord);
     border-radius: 4px;
     padding: 15px;
-    margin-bottom: 15px;
-    max-width: 500px;
-    font-size: 0.9em;
+    max-width: 600px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
-.hit-header { font-weight: bold; color: white; margin-bottom: 10px; }
-.hit-section { background: #202225; padding: 10px; border-radius: 3px; margin: 5px 0; }
-.hit-title { color: #b9bbbe; font-size: 0.8em; text-transform: uppercase; font-weight: bold; }
-.hit-data { color: #dcddde; white-space: pre-line; margin-top: 5px; }
-body {
-    background-color: var(--bg-dark);
-    color: var(--text-main);
-    font-family: 'Segoe UI', Roboto, sans-serif;
+
+.hit-header { font-weight: bold; color: white; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.hit-title { color: white; font-size: 0.85em; text-transform: uppercase; font-weight: bold; margin-top: 10px; }
+.hit-section { background: var(--bg-embed); padding: 10px; border-radius: 3px; margin-top: 5px; }
+.hit-data { color: #dcddde; font-family: 'Consolas', monospace; font-size: 0.85em; line-height: 1.4; }
+
+/* Messagerie */
+.chat-container {
+    height: 70vh;
+    background: var(--bg-card);
+    border-radius: 8px;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    margin: 0;
+    border: 1px solid #40444b;
 }
 
-.container {
-    background: var(--bg-card);
-    padding: 2rem;
-    border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-    width: 100%;
-    max-width: 400px;
-    text-align: center;
-    border: 1px solid #3e4147;
+#message-list { flex: 1; padding: 15px; overflow-y: auto; }
+
+.message-entry {
+    background: rgba(0,0,0,0.1);
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
 }
 
-h1 { color: var(--accent); margin-bottom: 0.5rem; }
-p { color: var(--text-muted); margin-bottom: 1.5rem; }
+.msg-input-area {
+    padding: 15px;
+    background: #2f3136;
+    display: flex;
+    gap: 10px;
+    border-radius: 0 0 8px 8px;
+}
 
-input {
-    width: 100%;
-    padding: 12px;
-    margin: 10px 0;
-    background: #121212;
+input[type="text"] {
+    background: #202225;
     border: 1px solid #444;
-    border-radius: 6px;
     color: white;
-    box-sizing: border-box;
+    padding: 10px;
+    border-radius: 5px;
+    flex: 1;
 }
 
-button {
-    width: 100%;
-    padding: 12px;
-    background: var(--accent);
-    border: none;
-    border-radius: 6px;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.3s;
-    margin-top: 10px;
-}
-
-button:hover { background: var(--accent-hover); }
-
-a { color: var(--accent); text-decoration: none; font-size: 0.9em; }
-a:hover { text-decoration: underline; }
+.send-btn { background: var(--accent); border: none; color: white; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+.send-btn:hover { opacity: 0.8; }
