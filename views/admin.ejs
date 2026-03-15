@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="/style.css">
+    <title>Admin Panel</title>
+</head>
+<body style="padding: 4%;">
+    <h1>Ajouter un Script</h1>
+    <form action="/admin/add" method="POST" style="display:flex; flex-direction:column; gap:10px; max-width:400px;">
+        <input type="hidden" name="password" value="<%= password %>">
+        <input type="text" name="title" placeholder="Titre" required>
+        <input type="text" name="fanart" placeholder="URL Image" required>
+        <textarea name="description" placeholder="Description"></textarea>
+        <textarea name="loadstring" placeholder="Code Loadstring" required></textarea>
+        <button type="submit">Ajouter</button>
+    </form>
+
+    <hr>
+    <h2>Liste des scripts</h2>
+    <% scripts.forEach(s => { %>
+        <p><%= s.title %> - <a href="/admin/delete/<%= s._id %>?password=<%= password %>" style="color:red">Supprimer</a></p>
+    <% }) %>
+</body>
+</html>
