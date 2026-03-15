@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="/style.css">
+    <title>Rusteez Scripts</title>
+</head>
+<body>
+    <nav><h1 class="logo">RUSTEEZ</h1></nav>
+    <div class="grid">
+        <% scripts.forEach(s => { %>
+            <div class="card" onclick="openModal('<%= s.title %>', '<%= s.fanart %>', `<%= s.description %>`, `<%= s.loadstring %>`)">
+                <img src="<%= s.fanart %>">
+                <div class="card-content"><b><%= s.title %></b></div>
+            </div>
+        <% }) %>
+    </div>
+
+    <div id="modal" class="modal" onclick="this.style.display='none'">
+        <div class="modal-box" onclick="event.stopPropagation()">
+            <img id="m-img" style="width:100%; border-radius:8px;">
+            <h2 id="m-title"></h2>
+            <p id="m-desc"></p>
+            <div class="code-area" id="m-code"></div>
+            <button onclick="copyCode()">Copier le Script</button>
+        </div>
+    </div>
+
+    <script>
+        function openModal(t, i, d, c) {
+            document.getElementById('m-title').innerText = t;
+            document.getElementById('m-img').src = i;
+            document.getElementById('m-desc').innerText = d;
+            document.getElementById('m-code').innerText = c;
+            document.getElementById('modal').style.display = 'flex';
+        }
+        function copyCode() {
+            navigator.clipboard.writeText(document.getElementById('m-code').innerText);
+            alert("Copié !");
+        }
+    </script>
+</body>
+</html>
