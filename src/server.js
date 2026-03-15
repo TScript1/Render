@@ -42,19 +42,23 @@ const authMiddleware = (req, res, next) => {
 // --- ROUTES RENDU ---
 
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public/index.html'));
+    const filePath = path.join(process.cwd(), 'public', 'index.html');
+    res.sendFile(filePath);
 });
 
 app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public/login.html'));
+    const filePath = path.join(process.cwd(), 'public', 'login.html');
+    res.sendFile(filePath);
 });
 
 app.get('/signup', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public/signup.html'));
+    const filePath = path.join(process.cwd(), 'public', 'signup.html');
+    res.sendFile(filePath);
 });
-// Page Dashboard protégée
+
 app.get('/dashboard', authMiddleware, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public/dashboard.html'));
+    const filePath = path.join(process.cwd(), 'public', 'dashboard.html');
+    res.sendFile(filePath);
 });
 
 // --- API AUTH ---
