@@ -9,6 +9,7 @@ const { Server } = require("socket.io");
 const cookieParser = require('cookie-parser');
 const User = require('./models/User');
 const Message = require('./models/Message');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
