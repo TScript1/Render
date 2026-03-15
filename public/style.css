@@ -9,6 +9,7 @@
     --text-muted: #8e9297;
     --success: #43b581;
     --danger: #f04747;
+    --discord-blue: #5865f2;
 }
 
 body {
@@ -20,7 +21,6 @@ body {
 }
 
 /* --- STYLES POUR INDEX, LOGIN, SIGNUP --- */
-
 .navbar {
     width: 100%;
     background: var(--bg-sidebar);
@@ -57,17 +57,7 @@ body {
     margin-top: 40px;
 }
 
-.info-section {
-    max-width: 800px;
-    text-align: left;
-    margin-top: 50px;
-    line-height: 1.6;
-    background: var(--bg-card);
-    padding: 30px;
-    border-radius: 12px;
-}
-
-/* Eléments de formulaire partagés */
+/* --- FORMULAIRES --- */
 input, select, textarea {
     width: 100%;
     padding: 12px;
@@ -93,8 +83,7 @@ button {
 
 button:hover { background: var(--accent-hover); }
 
-/* --- STYLES SPÉCIFIQUES AU DASHBOARD --- */
-
+/* --- DASHBOARD STRUCTURE --- */
 .dashboard-container {
     display: flex;
     height: 100vh;
@@ -109,6 +98,12 @@ button:hover { background: var(--accent-hover); }
     border-right: 1px solid #202225;
 }
 
+.main-content {
+    flex: 1;
+    padding: 30px;
+    overflow-y: auto;
+}
+
 .tab-btn {
     background: transparent;
     border: none;
@@ -119,7 +114,10 @@ button:hover { background: var(--accent-hover); }
     cursor: pointer;
     border-radius: 5px;
     margin-bottom: 5px;
+    transition: 0.2s;
 }
+
+.tab-btn:hover { background: rgba(255,255,255,0.05); color: white; }
 
 .tab-btn.active { 
     background: #393c43;
@@ -127,37 +125,84 @@ button:hover { background: var(--accent-hover); }
     border-left: 4px solid var(--accent); 
 }
 
-.main-content {
-    flex: 1;
-    padding: 30px;
-    overflow-y: auto;
-}
-
 .tab-content { display: none; }
 .tab-content.active { display: block; animation: fadeIn 0.3s; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-.hit-card {
+/* --- NOUVEAUX STYLES : CARTES DE HITS DÉTAILLÉES --- */
+.hit-card-detail {
     background: var(--bg-card);
-    border-left: 4px solid #7289da;
-    border-radius: 4px;
-    padding: 15px;
+    border: 1px solid #2d2d31;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.hit-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 15px;
+    font-size: 0.85em;
+    color: var(--text-muted);
+    border-bottom: 1px solid #444;
+    padding-bottom: 15px;
     margin-bottom: 15px;
 }
 
+.hit-info-grid b { color: var(--text-main); }
+
+.badge-receiver {
+    background: var(--discord-blue);
+    color: white;
+    font-size: 0.75em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-right: 5px;
+    display: inline-block;
+    font-weight: bold;
+}
+
+.brainrot-list {
+    max-height: 150px;
+    overflow-y: auto;
+    background: rgba(0,0,0,0.25);
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #222;
+}
+
+.brainrot-item {
+    font-family: 'Consolas', monospace;
+    font-size: 0.85em;
+    color: var(--success);
+    margin-bottom: 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+/* --- CHAT & MESSAGES --- */
 .chat-container {
-    height: 65vh;
+    height: 70vh;
     background: var(--bg-sidebar);
     border-radius: 8px;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #202225;
 }
 
 #message-list { flex: 1; padding: 15px; overflow-y: auto; }
-.message-entry { background: rgba(0,0,0,0.2); padding: 10px; margin-bottom: 10px; border-radius: 5px; }
 
-/* Modals */
+.message-entry { 
+    background: rgba(0,0,0,0.2); 
+    padding: 12px; 
+    margin-bottom: 12px; 
+    border-radius: 8px;
+    border-left: 3px solid var(--accent);
+}
+
+/* --- MODALS & MINI BTNS --- */
 .modal {
     display: none;
     position: fixed;
@@ -171,6 +216,18 @@ button:hover { background: var(--accent-hover); }
     background: var(--bg-card);
     padding: 25px;
     border-radius: 12px;
-    width: 400px;
+    width: 450px;
     border: 1px solid var(--accent);
 }
+
+.btn-mini {
+    width: auto !important;
+    padding: 6px 15px !important;
+    font-size: 0.8em;
+}
+
+/* Scrollbar Custom */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-darker); }
+::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
