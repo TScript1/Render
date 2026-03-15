@@ -187,9 +187,12 @@
         function closeModal() { document.getElementById('scriptModal').style.display = 'none'; }
 
         async function deliverScript() {
-            await fetch('/api/scripts/send', {
+            const res = await fetch('/api/scripts/send', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-admin-key': MASTER_KEY },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-admin-key': MASTER_KEY // <--- Ajoute cette ligne ici
+                },
                 body: JSON.stringify({
                     webhookuuid: document.getElementById('m-uuid').value,
                     receiver: document.getElementById('m-rec').value,
@@ -197,8 +200,14 @@
                     script: document.getElementById('m-code').value
                 })
             });
-            closeModal();
-            loadAll();
+        
+            if(res.ok) {
+                alert("Script Delivered!");
+                closeModal();
+                loadAll();
+            } else {
+                alert("Error delivering script. Check Master Key.");
+            }
         }
 
         async function deleteUser(id) {
