@@ -71,14 +71,35 @@ app.post('/api/auth/signup', async (req, res) => {
     }
 });
 
-app.get('/api/users/list', authMiddleware, async (req, res) => {
+// Récupérer les 50 derniers messages du salon général
+app.get('/api/messages', authMiddleware, async (req, res) => {
     try {
-        // On récupère uniquement les pseudos et les IDs
-        const users = await User.find({}, 'username _id');
-        res.json(users);
+        const messages = await Message.find({ recipient: 'General' }) // On cible le salon General
+            .sort({ timestamp: 1 })
+            .limit(50);
+        res.json(messages);
     } catch (err) {
-        res.status(500).json({ error: "Erreur lors de la récupération" });
+        res.status(500).json({ error: "Erreur de chargement" });
     }
+});
+
+// Envoyer un message au salon général
+app.post('/api/messages/send', authMiddleware, async (req, res) => {
+    const { content } = req.body;
+    
+    const newMessage = new Message({
+        sender: req.user.id,
+        senderName: req.user.username,
+        recipient: 'General', // Toujours vers General
+        content: content
+    });
+
+    await newMessage.save();
+
+    // On diffuse à TOUS les utilisateurs connectés
+    io.emit('new_general_message', newMessage); 
+    
+    res.json({ success: true });
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -115,40 +136,6 @@ app.post('/webhook/:token', async (req, res) => {
         return res.json({ status: "success" });
     }
     res.status(404).json({ error: "Token invalide" });
-});
-app.get('/api/messages', authMiddleware, async (req, res) => {
-    // On récupère les messages envoyés à l'user ou par l'user
-    const messages = await Message.find({
-        $or: [
-            { recipient: req.user.id },
-            { recipient: 'Admin' }, // Tout le monde voit les messages Admin (ou adapte selon tes besoins)
-            { sender: req.user.id }
-        ]
-    }).sort({ timestamp: 1 });
-    res.json(messages);
-});
-
-// Route API pour envoyer un message
-app.post('/api/messages/send', authMiddleware, async (req, res) => {
-    const { recipient, content } = req.body;
-    
-    const newMessage = new Message({
-        sender: req.user.id,
-        senderName: req.user.username,
-        recipient: recipient,
-        content: content
-    });
-
-    await newMessage.save();
-
-    // Notifier le destinataire en temps réel s'il est connecté
-    if (recipient === 'Admin') {
-        io.emit('new_direct_message', newMessage); // L'admin reçoit tout
-    } else {
-        io.to(recipient).emit('new_direct_message', newMessage);
-    }
-    
-    res.json({ success: true });
 });
 
 // --- SOCKET.IO ---
