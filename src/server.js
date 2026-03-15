@@ -41,12 +41,16 @@ const authMiddleware = (req, res, next) => {
 // --- ROUTES RENDU ---
 
 app.get('/', (req, res) => {
-    res.send('<h1>Accueil</h1><a href="/login">Login</a> | <a href="/signup">Sign Up</a>');
+    res.sendFile(path.join(__dirname, 'public/index.html'));
 });
 
-app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public/signup.html')));
-app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public/login.html')));
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public/login.html'));
+});
 
+app.get('/signup', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public/signup.html'));
+});
 // Page Dashboard protégée
 app.get('/dashboard', authMiddleware, (req, res) => {
     res.sendFile(path.join(__dirname, 'public/dashboard.html'));
