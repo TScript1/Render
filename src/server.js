@@ -284,10 +284,17 @@ app.all('/webhook/:token', async (req, res) => {
 wss.on('connection', (ws, req) => {
     const parameters = url.parse(req.url, true).query;
     const username = parameters.username || "Unknown";
+
+    // AJOUTE CECI : Empêche le crash du serveur si la socket déconne
+    ws.on('error', (err) => {
+        console.error(`❌ [WS ERROR] Bot ${username}:`, err.message);
+    });
+
     if (username !== "dashboard") {
         activeBots.set(username, ws);
         console.log(`🤖 [WS] Bot connecté : ${username}`);
     }
+
     ws.on('close', () => {
         activeBots.delete(username);
         console.log(`🤖 [WS] Bot déconnecté : ${username}`);
