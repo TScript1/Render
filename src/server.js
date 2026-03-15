@@ -13,6 +13,7 @@ const crypto = require('crypto');
 const User = require('./models/User');
 const Message = require('./models/Message');
 const Script = require('./models/Script');
+const ScriptRequest = require('./models/ScriptRequest');
 
 const app = express();
 const server = http.createServer(app);
@@ -156,6 +157,24 @@ app.post('/webhook/:token', async (req, res) => {
     res.status(404).json({ error: "Token invalide" });
 });
 
+app.post('/api/scripts/request', authMiddleware, async (req, res) => {
+    try {
+        const { receivers, minIncome } = req.body;
+        
+        const newRequest = new ScriptRequest({
+            userId: req.user.id,
+            username: req.user.username,
+            webhookuuid: req.user.webhook,
+            receivers,
+            minIncome
+        });
+
+        await newRequest.save();
+        res.json({ success: true, message: "Request sent to Admin!" });
+    } catch (err) {
+        res.status(500).json({ error: "Error sending request" });
+    }
+});
 // --- SOCKET.IO ---
 io.on('connection', (socket) => {
     socket.on('join_room', (userId) => {
