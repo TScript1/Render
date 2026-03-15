@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const app = express();
 
-const PORT = process.env.PORT || 3000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+const PORT = process.env.PORT;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 // Connexion MongoDB
 mongoose.connect(process.env.MONGO_URI)
