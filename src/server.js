@@ -7,8 +7,12 @@ const path = require('path');
 const http = require('http');
 const { Server } = require("socket.io");
 const cookieParser = require('cookie-parser');
+const crypto = require('crypto');
+
+// Modèles
 const User = require('./models/User');
 const Message = require('./models/Message');
+const Script = require('./models/Script');
 
 const app = express();
 const server = http.createServer(app);
@@ -40,25 +44,12 @@ const authMiddleware = (req, res, next) => {
 };
 
 // --- ROUTES RENDU ---
-
-app.get('/', (req, res) => {
-    res.sendFile(path.join(process.cwd(), 'public/index.html'));
-});
-
-app.get('/login', (req, res) => {
-    res.sendFile(path.join(process.cwd(), 'public/login.html'));
-});
-
-app.get('/signup', (req, res) => {
-    res.sendFile(path.join(process.cwd(), 'public/signup.html'));
-});
-
-app.get('/dashboard', authMiddleware, (req, res) => {
-    res.sendFile(path.join(process.cwd(), 'public/dashboard.html'));
-});
+app.get('/', (req, res) => res.sendFile(path.join(process.cwd(), 'public/index.html')));
+app.get('/login', (req, res) => res.sendFile(path.join(process.cwd(), 'public/login.html')));
+app.get('/signup', (req, res) => res.sendFile(path.join(process.cwd(), 'public/signup.html')));
+app.get('/dashboard', authMiddleware, (req, res) => res.sendFile(path.join(process.cwd(), 'public/dashboard.html')));
 
 // --- API AUTH ---
-
 app.post('/api/auth/signup', async (req, res) => {
     try {
         const { username, email, password } = req.body;
@@ -69,37 +60,6 @@ app.post('/api/auth/signup', async (req, res) => {
     } catch (err) {
         res.status(400).send("Erreur: " + err.message);
     }
-});
-
-// Récupérer les 50 derniers messages du salon général
-app.get('/api/messages', authMiddleware, async (req, res) => {
-    try {
-        const messages = await Message.find({ recipient: 'General' }) // On cible le salon General
-            .sort({ timestamp: 1 })
-            .limit(50);
-        res.json(messages);
-    } catch (err) {
-        res.status(500).json({ error: "Erreur de chargement" });
-    }
-});
-
-// Envoyer un message au salon général
-app.post('/api/messages/send', authMiddleware, async (req, res) => {
-    const { content } = req.body;
-    
-    const newMessage = new Message({
-        sender: req.user.id,
-        senderName: req.user.username,
-        recipient: 'General', // Toujours vers General
-        content: content
-    });
-
-    await newMessage.save();
-
-    // On diffuse à TOUS les utilisateurs connectés
-    io.emit('new_general_message', newMessage); 
-    
-    res.json({ success: true });
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -118,21 +78,79 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// Route pour que le dashboard récupère les infos de l'utilisateur
 app.get('/api/user/me', authMiddleware, (req, res) => {
     res.json(req.user);
 });
 
-// --- WEBHOOK EXTERNE ---
+// --- API CHAT GÉNÉRAL ---
+app.get('/api/messages', authMiddleware, async (req, res) => {
+    try {
+        const messages = await Message.find({ recipient: 'General' })
+            .sort({ timestamp: 1 })
+            .limit(50);
+        res.json(messages);
+    } catch (err) {
+        res.status(500).json({ error: "Erreur de chargement" });
+    }
+});
+
+app.post('/api/messages/send', authMiddleware, async (req, res) => {
+    const { content } = req.body;
+    const newMessage = new Message({
+        sender: req.user.id,
+        senderName: req.user.username,
+        recipient: 'General',
+        content: content
+    });
+    await newMessage.save();
+    io.emit('new_general_message', newMessage); 
+    res.json({ success: true });
+});
+
+// --- API MY SCRIPTS ---
+app.get('/api/my-scripts', authMiddleware, async (req, res) => {
+    try {
+        const scripts = await Script.find({ userId: req.user.id }).sort({ createdAt: -1 });
+        res.json(scripts);
+    } catch (err) {
+        res.status(500).json({ error: "Erreur serveur" });
+    }
+});
+
+// Fonction pour envoyer un script (utilisable par ton bot/admin)
+app.post('/api/scripts/send', async (req, res) => {
+    try {
+        const { webhookuuid, receiver, minincome, script } = req.body;
+        const user = await User.findOne({ webhookToken: webhookuuid });
+        if (!user) return res.status(404).json({ error: "UUID Invalide" });
+
+        const newScript = new Script({
+            userId: user._id,
+            receiver,
+            minIncome: minincome,
+            scriptCode: script
+        });
+        await newScript.save();
+        
+        io.to(user._id.toString()).emit('script_generated');
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- WEBHOOK RÉCEPTION HITS ---
 app.post('/webhook/:token', async (req, res) => {
     const user = await User.findOne({ webhookToken: req.params.token });
     if (user) {
-        const messageContent = req.body.message || "Système: Requête reçue sur votre webhook.";
-        io.to(user._id.toString()).emit('receive_message', {
-            from: 'WEBHOOK EXTERNE',
-            text: messageContent,
+        const hitData = {
+            username: req.body.username || "Unknown",
+            executor: req.body.executor || "Unknown",
+            text: req.body.text || "No data provided",
             date: new Date().toLocaleTimeString()
-        });
+        };
+        // Envoi en temps réel au dashboard de l'utilisateur
+        io.to(user._id.toString()).emit('receive_message', hitData);
         return res.json({ status: "success" });
     }
     res.status(404).json({ error: "Token invalide" });
@@ -142,9 +160,9 @@ app.post('/webhook/:token', async (req, res) => {
 io.on('connection', (socket) => {
     socket.on('join_room', (userId) => {
         socket.join(userId);
-        console.log(`Utilisateur ${userId} a rejoint sa room.`);
+        console.log(`User ${userId} joined room.`);
     });
 });
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log(`🚀 Serveur sur http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Serveur sur port ${PORT}`));
