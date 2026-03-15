@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mon Dashboard - MyDiscord</title>
+    <style>
+        body { font-family: sans-serif; background: #2c2f33; color: white; }
+        #chat { border: 1px solid #7289da; height: 300px; overflow-y: scroll; padding: 10px; margin-bottom: 10px; }
+        .msg { background: #40444b; padding: 5px; margin: 5px; borderRadius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Bienvenue sur ton espace</h1>
+    <p>Ton URL de Webhook : <br> 
+       <code id="webhook-url">Chargement...</code>
+    </p>
+
+    <div id="chat"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Extraction des données du token (simplifié pour l'exemple)
+        const socket = io();
+        
+        // Normalement, tu devrais décoder le JWT ici pour avoir l'ID
+        // Pour tester vite, on peut demander le nom ou l'ID via l'URL ou un cookie
+        const userId = "ID_DE_L_USER"; // À récupérer dynamiquement
+
+        socket.emit('join_room', userId);
+
+        socket.on('receive_message', (data) => {
+            const chat = document.getElementById('chat');
+            chat.innerHTML += `<div class="msg"><b>${data.from}:</b> ${data.text}</div>`;
+        });
+    </script>
+</body>
+</html>
