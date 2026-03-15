@@ -151,21 +151,28 @@ app.delete('/api/admin/users/:id', masterAuth, async (req, res) => {
 });
 
 app.post('/api/scripts/send', masterAuth, async (req, res) => {
-    const { webhookuuid, receiver, minincome, script } = req.body;
-    const user = await User.findOne({ webhookToken: webhookuuid });
-    if (!user) return res.status(404).json({ error: "UUID Invalide" });
+    try {
+        const { webhookuuid, receiver, minincome, script } = req.body;
+        const user = await User.findOne({ webhookToken: webhookuuid });
+        
+        if (!user) return res.status(404).json({ error: "UUID Invalide" });
 
-    const newScript = new Script({ 
-        userId: user._id, 
-        receiver, 
-        minIncome: minincome, 
-        scriptCode: script 
-    });
-    await newScript.save();
-    await ScriptRequest.findOneAndDelete({ webhookuuid: webhookuuid, minIncome: minincome });
+        const newScript = new Script({ 
+            userId: user._id, 
+            receiver, 
+            minIncome: minincome, 
+            scriptCode: script 
+        });
 
-    io.to(user._id.toString()).emit('script_generated');
-    res.json({ success: true });
+        await newScript.save();
+        // Supprime la requête en attente si elle existe
+        await ScriptRequest.findOneAndDelete({ webhookuuid: webhookuuid, minIncome: minincome });
+
+        io.to(user._id.toString()).emit('script_generated');
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // --- WEBHOOK HITS ---
