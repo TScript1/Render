@@ -71,6 +71,16 @@ app.post('/api/auth/signup', async (req, res) => {
     }
 });
 
+app.get('/api/users/list', authMiddleware, async (req, res) => {
+    try {
+        // On récupère uniquement les pseudos et les IDs
+        const users = await User.find({}, 'username _id');
+        res.json(users);
+    } catch (err) {
+        res.status(500).json({ error: "Erreur lors de la récupération" });
+    }
+});
+
 app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
