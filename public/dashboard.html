@@ -1,36 +1,65 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-    <title>Mon Dashboard - MyDiscord</title>
+    <meta charset="UTF-8">
+    <title>Dashboard | MyDiscord</title>
     <style>
-        body { font-family: sans-serif; background: #2c2f33; color: white; }
-        #chat { border: 1px solid #7289da; height: 300px; overflow-y: scroll; padding: 10px; margin-bottom: 10px; }
-        .msg { background: #40444b; padding: 5px; margin: 5px; borderRadius: 5px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #36393f; color: #dcddde; display: flex; height: 100vh; margin: 0; }
+        .sidebar { width: 240px; background: #2f3136; padding: 20px; border-right: 1px solid #202225; }
+        .main { flex: 1; display: flex; flex-direction: column; padding: 20px; }
+        #chat-box { flex: 1; background: #36393f; border: 1px solid #40444b; border-radius: 8px; overflow-y: auto; padding: 15px; margin-top: 10px; }
+        .message { background: #40444b; padding: 10px; margin-bottom: 10px; border-radius: 5px; border-left: 4px solid #7289da; }
+        .webhook-info { background: #292b2f; padding: 10px; border-radius: 5px; font-size: 0.8em; word-break: break-all; color: #8e9297; }
+        h2 { color: white; }
+        code { color: #00ff00; }
     </style>
 </head>
 <body>
-    <h1>Bienvenue sur ton espace</h1>
-    <p>Ton URL de Webhook : <br> 
-       <code id="webhook-url">Chargement...</code>
-    </p>
 
-    <div id="chat"></div>
+<div class="sidebar">
+    <h2 id="welcome-user">Chargement...</h2>
+    <p>Session active</p>
+    <hr style="border: 0.5px solid #40444b">
+    <a href="/login" style="color: #ff4747; text-decoration: none;">Déconnexion</a>
+</div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        // Extraction des données du token (simplifié pour l'exemple)
-        const socket = io();
-        
-        // Normalement, tu devrais décoder le JWT ici pour avoir l'ID
-        // Pour tester vite, on peut demander le nom ou l'ID via l'URL ou un cookie
-        const userId = "ID_DE_L_USER"; // À récupérer dynamiquement
+<div class="main">
+    <div class="webhook-info">
+        Votre URL Webhook : <br>
+        <code id="webhook-url">Génération en cours...</code>
+    </div>
+    
+    <div id="chat-box">
+        <div class="message">Bienvenue dans votre espace personnel. Les messages envoyés à votre webhook apparaîtront ici.</div>
+    </div>
+</div>
 
-        socket.emit('join_room', userId);
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    const chatBox = document.getElementById('chat-box');
 
-        socket.on('receive_message', (data) => {
-            const chat = document.getElementById('chat');
-            chat.innerHTML += `<div class="msg"><b>${data.from}:</b> ${data.text}</div>`;
+    // 1. Récupérer les infos de l'utilisateur
+    fetch('/api/user/me')
+        .then(res => res.json())
+        .then(user => {
+            document.getElementById('welcome-user').innerText = `Salut, ${user.username}`;
+            const fullUrl = `${window.location.origin}/webhook/${user.webhook}`;
+            document.getElementById('webhook-url').innerText = fullUrl;
+
+            // 2. Rejoindre la room Socket.io avec l'ID utilisateur
+            socket.emit('join_room', user.id);
         });
-    </script>
+
+    // 3. Écouter les messages entrants
+    socket.on('receive_message', (data) => {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'message';
+        msgDiv.innerHTML = `<strong>[${data.date}] ${data.from}</strong><br>${data.text}`;
+        chatBox.appendChild(msgDiv);
+        chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll vers le bas
+    });
+</script>
+
 </body>
 </html>
